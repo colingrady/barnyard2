@@ -257,9 +257,9 @@ static void logKeyValueHandler (Packet *p, void *orig_event, uint32_t event_type
         TextLog_Print(data->log, "\%barnyard2 timestamp=%d ", ntohl(event->event_second));
 
         if (barnyard2_conf->hostname != NULL)
-            TextLog_Print(data->log, "hostname=%s ", barnyard2_conf->hostname);
+            TextLog_Print(data->log, "host=%s ", barnyard2_conf->hostname);
         else
-            TextLog_Puts(data->log, "hostname=sensor ");
+            TextLog_Puts(data->log, "host=sensor ");
     }
 
     if (BcAlertInterface())
@@ -270,12 +270,12 @@ static void logKeyValueHandler (Packet *p, void *orig_event, uint32_t event_type
     sn = GetSigByGidSid(ntohl(event->generator_id), ntohl(event->signature_id), ntohl(event->signature_revision));
     if (sn != NULL)
     {
-        TextLog_Puts(data->log, "msg=");
+        TextLog_Puts(data->log, "signature=");
         TextLog_Quote(data->log, sn->msg);
         TextLog_Puts(data->log, " ");
     }
     else
-        TextLog_Puts(data->log, "msg=\"Snort Alert\" ");
+        TextLog_Puts(data->log, "signature=\"Snort Alert\" ");
 
     cn = ClassTypeLookupById(barnyard2_conf, ntohl(event->classification_id));
     if (cn != NULL)

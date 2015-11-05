@@ -64,6 +64,7 @@
 #define ENCODING_NONE -1
 
 
+
 typedef struct _LogKeyValueData
 {
     int pid;
@@ -81,11 +82,12 @@ static LogKeyValueData *logKeyValueParseArgs (char *);
 static void logKeyValueHandler (Packet *, void *, uint32_t, void *);
 static void logKeyValueEventHandler (Packet *, void *, uint32_t, LogKeyValueData *);
 static void logKeyValueExtraDataHandler (void *, uint32_t, LogKeyValueData *);
-static void logKeyValuePrintLogHeader (void *, LogKeyValueData *);
+static void logKeyValuePrintLogHeader (void *, LogKeyValueData *, char *);
 static void logKeyValueExit (int, void *);
 static void logKeyValueRestart (int, void *);
 static void logKeyValueCleanup (int, void *, const char *);
 char *logKeyValueAscii (const u_char *, int);
+
 
 
 void logKeyValueSetup (void)
@@ -221,7 +223,6 @@ static void logKeyValueHandler (Packet *p, void *orig_event, uint32_t event_type
             logKeyValueExtraDataHandler(orig_event, event_type, data);
             break;
 
-        case UNIFIED2_PACKET:
         case UNIFIED2_IDS_EVENT:
         case UNIFIED2_IDS_EVENT_IPV6:
         case UNIFIED2_IDS_EVENT_MPLS:
@@ -251,9 +252,7 @@ static void logKeyValueEventHandler (Packet *p, void *orig_event, uint32_t event
         return;
     }
 
-    logKeyValuePrintLogHeader(orig_event, data);
-
-    TextLog_Puts(data->log, "type=EVENT ");
+    logKeyValuePrintLogHeader(orig_event, data, "EVENT");
 
     TextLog_Print(data->log, "sid=\"%lu:%lu\" revision=%lu ", (unsigned long) ntohl(event->generator_id), (unsigned long) ntohl(event->signature_id), (unsigned long) ntohl(event->signature_revision));
 
@@ -343,9 +342,7 @@ static void logKeyValueExtraDataHandler (void *orig_event, uint32_t event_type, 
 
         */
 
-        logKeyValuePrintLogHeader(orig_event, data);
-
-        TextLog_Puts(data->log, "type=EXTRA ");
+        logKeyValuePrintLogHeader(orig_event, data, "EXTRA");
 
         // TODO: Output data here
 
@@ -355,7 +352,7 @@ static void logKeyValueExtraDataHandler (void *orig_event, uint32_t event_type, 
 }
 
 
-static void logKeyValuePrintLogHeader (void *orig_event, LogKeyValueData *data)
+static void logKeyValuePrintLogHeader (void *orig_event, LogKeyValueData *data, char *log_type)
 {
     Unified2CacheCommon *event = (Unified2CacheCommon *)orig_event;
 
@@ -401,6 +398,7 @@ static void logKeyValuePrintLogHeader (void *orig_event, LogKeyValueData *data)
     if (BcAlertInterface())
         TextLog_Print(data->log, "iface=%s ", PRINT_INTERFACE(barnyard2_conf->interface));
 
+    TextLog_Print(data->log, "logtype=%s ", log_type);
     TextLog_Print(data->log, "eventid=%lu ", (unsigned long) ntohl(event->event_id));
 
     if (data->like_syslog)

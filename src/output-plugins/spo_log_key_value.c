@@ -81,6 +81,7 @@ static LogKeyValueData *logKeyValueParseArgs (char *);
 static void logKeyValueHandler (Packet *, void *, uint32_t, void *);
 static void logKeyValueEventHandler (Packet *, void *, uint32_t, LogKeyValueData *);
 static void logKeyValueExtraDataHandler (void *, uint32_t, LogKeyValueData *);
+static void logKeyValuePrintLogHeader (void *, LogKeyValueData *);
 static void logKeyValueExit (int, void *);
 static void logKeyValueRestart (int, void *);
 static void logKeyValueCleanup (int, void *, const char *);
@@ -250,49 +251,9 @@ static void logKeyValueEventHandler (Packet *p, void *orig_event, uint32_t event
         return;
     }
 
-    if (data->like_syslog)
-    {
-        char timestamp[20];
-        int localzone;
-        time_t t;
-        struct tm *lt;
+    logKeyValuePrintLogHeader(orig_event, data);
 
-        localzone = barnyard2_conf->thiszone;
-        if (BcOutputUseUtc())
-            localzone = 0;
-
-        t = ntohl(event->event_second) + localzone;
-        lt = gmtime(&t);
-
-        if (strftime(timestamp, sizeof(timestamp), "%h %e %T", lt))
-            TextLog_Print(data->log, "%s ", timestamp);
-        else
-            LogTimeStamp(data->log, p);
-
-        if (barnyard2_conf->hostname != NULL)
-            TextLog_Print(data->log, "%s ", barnyard2_conf->hostname);
-        else
-            TextLog_Puts(data->log, "sensor ");
-
-        TextLog_Print(data->log, "barnyard[%d]: \%SNORT ", data->pid);
-    }
-    else
-    {
-        TextLog_Print(data->log, "\%SNORT timestamp=%d ", ntohl(event->event_second));
-
-        if (barnyard2_conf->hostname != NULL)
-            TextLog_Print(data->log, "host=%s ", barnyard2_conf->hostname);
-        else
-            TextLog_Puts(data->log, "host=sensor ");
-    }
-
-    if (BcAlertInterface())
-        TextLog_Print(data->log, "interface=%s ", PRINT_INTERFACE(barnyard2_conf->interface));
-
-    TextLog_Print(data->log, "eventid=%lu ", (unsigned long) ntohl(event->event_id));
-
-    if (data->like_syslog)
-        TextLog_Print(data->log, "eventsec=%d ", ntohl(event->event_second));
+    TextLog_Puts(data->log, "type=EVENT ");
 
     TextLog_Print(data->log, "sid=\"%lu:%lu\" revision=%lu ", (unsigned long) ntohl(event->generator_id), (unsigned long) ntohl(event->signature_id), (unsigned long) ntohl(event->signature_revision));
 
@@ -352,12 +313,12 @@ static void logKeyValueEventHandler (Packet *p, void *orig_event, uint32_t event
 }
 
 
-static void logKeyValueExtraDataHandler (void *event, uint32_t event_type, LogKeyValueData *data)
+static void logKeyValueExtraDataHandler (void *orig_event, uint32_t event_type, LogKeyValueData *data)
 {
     Unified2ExtraDataHdr *extra_header = NULL;
     Unified2ExtraData *extra_event = NULL;
     u_char *extra_data = NULL;
-    int data_len;
+    int extra_data_len;
 
     if (event_type != UNIFIED2_EXTRA_DATA)
         return;
@@ -368,17 +329,82 @@ static void logKeyValueExtraDataHandler (void *event, uint32_t event_type, LogKe
         return;
     }
 
-    extra_header = (Unified2ExtraDataHdr *)event;
-    extra_event = (Unified2ExtraData *)(event + sizeof(Unified2ExtraDataHdr));
+    extra_header = (Unified2ExtraDataHdr *)orig_event;
+    extra_event = (Unified2ExtraData *)(orig_event + sizeof(Unified2ExtraDataHdr));
+    extra_data_len = ntohl(extra_event->blob_length) - sizeof(extra_event->blob_length) - sizeof(extra_event->data_type);
 
-    int data_len = ntohl(extra_event->blob_length) - sizeof(extra_event->blob_length) - sizeof(extra_event->data_type);
-
-    if (data_len)
+    if (extra_data_len)
     {
-        extra_data = SnortAlloc(data_len + 1);
-        memcpy(extra_data, (char *) extra_event + sizeof(Unified2ExtraData), data_len);
-        extra_data[data_len] = '\0';
+        /*
+            TODO
+        extra_data = SnortAlloc(extra_data_len + 1);
+        memcpy(extra_data, (char *) extra_event + sizeof(Unified2ExtraData), extra_data_len);
+        extra_data[extra_data_len] = '\0';
+
+        */
+
+        logKeyValuePrintLogHeader(orig_event, data);
+
+        TextLog_Puts(data->log, "type=EXTRA ");
+
+        // TODO: Output data here
+
+        TextLog_NewLine(data->log);
+        TextLog_Flush(data->log);
     }
+}
+
+
+static void logKeyValuePrintLogHeader (void *orig_event, LogKeyValueData *data)
+{
+    Unified2CacheCommon *event = (Unified2CacheCommon *)orig_event;
+
+    if (data->like_syslog)
+    {
+        char timestamp[20];
+        int localzone;
+        time_t t;
+        struct tm *lt;
+
+        localzone = barnyard2_conf->thiszone;
+        if (BcOutputUseUtc())
+            localzone = 0;
+
+        t = ntohl(event->event_second) + localzone;
+        lt = gmtime(&t);
+
+        if (strftime(timestamp, sizeof(timestamp), "%h %e %T", lt))
+            TextLog_Print(data->log, "%s ", timestamp);
+        else
+        {
+            LogMessage("log_key_value: Unable to parse the event timestamp\n");
+            TextLog_Puts(data->log, "Jan  1 00:00:00");
+        }
+
+        if (barnyard2_conf->hostname != NULL)
+            TextLog_Print(data->log, "%s ", barnyard2_conf->hostname);
+        else
+            TextLog_Puts(data->log, "sensor ");
+
+        TextLog_Print(data->log, "barnyard[%d]: \%snortids ", data->pid);
+    }
+    else
+    {
+        TextLog_Print(data->log, "\%snortids eventsec=%d ", ntohl(event->event_second));
+
+        if (barnyard2_conf->hostname != NULL)
+            TextLog_Print(data->log, "host=%s ", barnyard2_conf->hostname);
+        else
+            TextLog_Puts(data->log, "host=sensor ");
+    }
+
+    if (BcAlertInterface())
+        TextLog_Print(data->log, "iface=%s ", PRINT_INTERFACE(barnyard2_conf->interface));
+
+    TextLog_Print(data->log, "eventid=%lu ", (unsigned long) ntohl(event->event_id));
+
+    if (data->like_syslog)
+        TextLog_Print(data->log, "eventsec=%d ", ntohl(event->event_second));
 }
 
 

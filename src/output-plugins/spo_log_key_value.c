@@ -79,6 +79,8 @@ typedef struct _LogKeyValueData
 static void logKeyValueRegister (char *);
 static LogKeyValueData *logKeyValueParseArgs (char *);
 static void logKeyValueHandler (Packet *, void *, uint32_t, void *);
+static void logKeyValueEventHandler (Packet *, void *, uint32_t, LogKeyValueData *);
+static void logKeyValueExtraDataHandler (void *, uint32_t, LogKeyValueData *);
 static void logKeyValueExit (int, void *);
 static void logKeyValueRestart (int, void *);
 static void logKeyValueCleanup (int, void *, const char *);
@@ -210,19 +212,41 @@ static LogKeyValueData *logKeyValueParseArgs (char *args)
 
 static void logKeyValueHandler (Packet *p, void *orig_event, uint32_t event_type, void *arg)
 {
-    Unified2EventCommon *event = (Unified2EventCommon *)orig_event;
     LogKeyValueData *data = (LogKeyValueData *)arg;
+
+    switch (event_type)
+    {
+        case UNIFIED2_EXTRA_DATA:
+            logKeyValueExtraDataHandler(orig_event, event_type, data);
+            break;
+
+        case UNIFIED2_PACKET:
+        case UNIFIED2_IDS_EVENT:
+        case UNIFIED2_IDS_EVENT_IPV6:
+        case UNIFIED2_IDS_EVENT_MPLS:
+        case UNIFIED2_IDS_EVENT_IPV6_MPLS:
+        case UNIFIED2_IDS_EVENT_VLAN:
+        case UNIFIED2_IDS_EVENT_IPV6_VLAN:
+        default:
+            logKeyValueEventHandler(p, orig_event, event_type, data);
+            break;
+    }
+}
+
+
+static void logKeyValueEventHandler (Packet *p, void *orig_event, uint32_t event_type, LogKeyValueData *data)
+{
+    Unified2EventCommon *event = (Unified2EventCommon *)orig_event;
     SigNode *sn;
     ClassType *cn;
     char *packet_data;
 
-    // If there's no packet data, no need to continue
     if (p == NULL)
         return;
 
     if (event == NULL || data == NULL)
     {
-        LogMessage("log_key_value: Handler called with null arguments for event eype %u\n", event_type);
+        LogMessage("log_key_value: Event handler called with null arguments for event type %u\n", event_type);
         return;
     }
 
@@ -250,11 +274,11 @@ static void logKeyValueHandler (Packet *p, void *orig_event, uint32_t event_type
         else
             TextLog_Puts(data->log, "sensor ");
 
-        TextLog_Print(data->log, "barnyard[%d]: ", data->pid);
+        TextLog_Print(data->log, "barnyard[%d]: \%SNORT ", data->pid);
     }
     else
     {
-        TextLog_Print(data->log, "\%barnyard2 timestamp=%d ", ntohl(event->event_second));
+        TextLog_Print(data->log, "\%SNORT timestamp=%d ", ntohl(event->event_second));
 
         if (barnyard2_conf->hostname != NULL)
             TextLog_Print(data->log, "host=%s ", barnyard2_conf->hostname);
@@ -263,9 +287,14 @@ static void logKeyValueHandler (Packet *p, void *orig_event, uint32_t event_type
     }
 
     if (BcAlertInterface())
-        TextLog_Print(data->log, "iface=%s ", PRINT_INTERFACE(barnyard2_conf->interface));
+        TextLog_Print(data->log, "interface=%s ", PRINT_INTERFACE(barnyard2_conf->interface));
 
-    TextLog_Print(data->log, "id=\"%lu:%lu:%lu\" ", (unsigned long) ntohl(event->generator_id), (unsigned long) ntohl(event->signature_id), (unsigned long) ntohl(event->signature_revision));
+    TextLog_Print(data->log, "eventid=%lu ", (unsigned long) ntohl(event->event_id));
+
+    if (data->like_syslog)
+        TextLog_Print(data->log, "eventsec=%d ", ntohl(event->event_second));
+
+    TextLog_Print(data->log, "sid=\"%lu:%lu\" revision=%lu ", (unsigned long) ntohl(event->generator_id), (unsigned long) ntohl(event->signature_id), (unsigned long) ntohl(event->signature_revision));
 
     sn = GetSigByGidSid(ntohl(event->generator_id), ntohl(event->signature_id), ntohl(event->signature_revision));
     if (sn != NULL)
@@ -320,6 +349,36 @@ static void logKeyValueHandler (Packet *p, void *orig_event, uint32_t event_type
 
     TextLog_NewLine(data->log);
     TextLog_Flush(data->log);
+}
+
+
+static void logKeyValueExtraDataHandler (void *event, uint32_t event_type, LogKeyValueData *data)
+{
+    Unified2ExtraDataHdr *extra_header = NULL;
+    Unified2ExtraData *extra_event = NULL;
+    u_char *extra_data = NULL;
+    int data_len;
+
+    if (event_type != UNIFIED2_EXTRA_DATA)
+        return;
+
+    if (event == NULL || data == NULL)
+    {
+        LogMessage("log_key_value: Extra data handler called with null arguments for event type %u\n", event_type);
+        return;
+    }
+
+    extra_header = (Unified2ExtraDataHdr *)event;
+    extra_event = (Unified2ExtraData *)(event + sizeof(Unified2ExtraDataHdr));
+
+    int data_len = ntohl(extra_event->blob_length) - sizeof(extra_event->blob_length) - sizeof(extra_event->data_type);
+
+    if (data_len)
+    {
+        extra_data = SnortAlloc(data_len + 1);
+        memcpy(extra_data, (char *) extra_event + sizeof(Unified2ExtraData), data_len);
+        extra_data[data_len] = '\0';
+    }
 }
 
 

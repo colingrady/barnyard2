@@ -160,7 +160,8 @@ typedef enum _EventInfoEnum
     EVENT_INFO_HTTP_HOSTNAME,
     EVENT_INFO_IPV6_SRC,
     EVENT_INFO_IPV6_DST,
-    EVENT_INFO_JSNORM_DATA
+    EVENT_INFO_JSNORM_DATA,
+    EVENT_INFO_MAX
 }EventInfoEnum;
 
 typedef enum _EventDataType

@@ -73,6 +73,9 @@ typedef struct _LogKeyValueData
 
     u_int8_t like_syslog;
     u_int8_t encoding;
+
+    char **extra_data_types;
+    int types_count;
 } LogKeyValueData;
 
 
@@ -114,6 +117,12 @@ static void logKeyValueRegister (char *args)
     AddFuncToCleanExitList(logKeyValueExit, data);
     AddFuncToShutdownList(logKeyValueExit, data);
     AddFuncToRestartList(logKeyValueRestart, data);
+
+    data->extra_data_types = mSplit(",HTTP XFF,HTTP XFF,Reviewed By,gzip Data" \
+                                    ",SMTP Filename,SMTP MAIL FROM,SMTP RCPT TO" \
+                                    ",SMTP Email Headers,HTTP URI,HTTP Hostname" \
+                                    ",IPv6 Source,IPv6 Destination,", \
+                                    ",", EVENT_INFO_MAX, &data->types_count, '\\');
 }
 
 
@@ -287,7 +296,7 @@ static void logKeyValueEventHandler (Packet *p, void *orig_event, uint32_t event
         
         if (p->dsize && data->encoding != ENCODING_NONE)
         {
-            switch(data->encoding)
+            switch (data->encoding)
             {
                 case ENCODING_HEX:
                     packet_data = fasthex(p->data, p->dsize);
@@ -346,7 +355,12 @@ static void logKeyValueExtraDataHandler (void *orig_event, uint32_t event_type, 
 
         logKeyValuePrintLogHeader(extra_event, data, "EXTRA");
 
-        TextLog_Print(data->log, "extratype=%d ", ntohl(extra_event->type));
+        TextLog_Puts(data->log, "extratype=");
+        if (data->extra_data_types[extra_event->type])
+            TextLog_Quote(data->log, data->extra_data_types[extra_event->type]);
+        else
+            TextLog_Quote(data->log, "Unsupported");
+
 
         // TODO: Output data here
 
@@ -431,6 +445,9 @@ static void logKeyValueCleanup (int signal, void *arg, const char *msg)
 
     if (data)
     {
+        if (data->extra_data_types)
+            mSplitFree(&data->extra_data_types, data->types_count);
+
         if (data->log)
             TextLog_Term(data->log);
 

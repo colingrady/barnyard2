@@ -256,7 +256,7 @@ static void logKeyValueEventHandler (Packet *p, void *orig_event, uint32_t event
 
     logKeyValuePrintLogHeader(orig_event, data, "EVENT");
 
-    TextLog_Print(data->log, "sid=\"%lu:%lu\" revision=%lu ", (unsigned long) ntohl(event->generator_id), (unsigned long) ntohl(event->signature_id), (unsigned long) ntohl(event->signature_revision));
+    TextLog_Print(data->log, "sigid=\"%lu:%lu\" sigrev=%lu ", (unsigned long) ntohl(event->generator_id), (unsigned long) ntohl(event->signature_id), (unsigned long) ntohl(event->signature_revision));
 
     sn = GetSigByGidSid(ntohl(event->generator_id), ntohl(event->signature_id), ntohl(event->signature_revision));
     if (sn != NULL)
@@ -385,11 +385,11 @@ static void logKeyValuePrintLogHeader (void *orig_event, LogKeyValueData *data, 
         else
             TextLog_Puts(data->log, "sensor ");
 
-        TextLog_Print(data->log, "barnyard[%d]: \%snortids ", data->pid);
+        TextLog_Print(data->log, "barnyard[%d]: %%snortids ", data->pid);
     }
     else
     {
-        TextLog_Print(data->log, "\%snortids eventsec=%d ", ntohl(event->event_second));
+        TextLog_Print(data->log, "%%snortids eventsec=%d ", ntohl(event->event_second));
 
         if (barnyard2_conf->hostname != NULL)
             TextLog_Print(data->log, "host=%s ", barnyard2_conf->hostname);
@@ -397,10 +397,11 @@ static void logKeyValuePrintLogHeader (void *orig_event, LogKeyValueData *data, 
             TextLog_Puts(data->log, "host=sensor ");
     }
 
+    TextLog_Print(data->log, "logtype=%s ", log_type);
+
     if (BcAlertInterface())
         TextLog_Print(data->log, "iface=%s ", PRINT_INTERFACE(barnyard2_conf->interface));
 
-    TextLog_Print(data->log, "logtype=%s ", log_type);
     TextLog_Print(data->log, "eventid=%lu ", (unsigned long) ntohl(event->event_id));
 
     if (data->like_syslog)

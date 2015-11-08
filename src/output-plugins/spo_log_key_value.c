@@ -344,7 +344,9 @@ static void logKeyValueExtraDataHandler (void *orig_event, uint32_t event_type, 
 
         */
 
-        logKeyValuePrintLogHeader(orig_event, data, "EXTRA");
+        logKeyValuePrintLogHeader(extra_event, data, "EXTRA");
+
+        TextLog_Print(data->log, "extratype=%d ", ntohl(extra_event->type));
 
         // TODO: Output data here
 

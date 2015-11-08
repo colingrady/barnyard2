@@ -355,11 +355,10 @@ static void logKeyValueExtraDataHandler (void *orig_event, uint32_t event_type, 
 
         logKeyValuePrintLogHeader(extra_event, data, "EXTRA");
 
-        TextLog_Puts(data->log, "extratype=");
-        if (data->extra_data_types[extra_event->type])
-            TextLog_Quote(data->log, data->extra_data_types[extra_event->type]);
+        if (extra_event->type && extra_event->type < EVENT_INFO_MAX)
+            TextLog_Print(data->log, "extratype=\"%s\" ", data->extra_data_types[extra_event->type]);
         else
-            TextLog_Quote(data->log, "Unsupported");
+            TextLog_Puts(data->log, "extratype=Unsupported ");
 
 
         // TODO: Output data here

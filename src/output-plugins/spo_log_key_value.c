@@ -372,7 +372,7 @@ static void logKeyValueExtraDataHandler (void *orig_event, uint32_t event_type, 
         {
             case EVENT_INFO_XFF_IPV4:
                 memcpy(&ip, extra_event + sizeof(Unified2ExtraData), sizeof(uint32_t));
-                TextLog_Print(data->log, "data=%u.%u.%u.%u ", TO_IP(ntohl(ip)));
+                TextLog_Print(data->log, "data=%u.%u.%u.%u data2=%u.%u.%u.%u", TO_IP(ntohl(ip)), TO_IP(ip));
                 break;
 
             default:

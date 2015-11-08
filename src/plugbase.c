@@ -86,6 +86,7 @@ extern PluginSignalFuncNode *plugin_restart_funcs;
 extern InputFuncNode  *InputList;
 extern OutputFuncNode *AlertList;
 extern OutputFuncNode *LogList;
+extern OutputFuncNode *ExtraDataList;
 
 extern Barnyard2Config *barnyard2_conf_for_parsing;
 extern int file_line;
@@ -579,6 +580,10 @@ void AddFuncToOutputList(OutputFunc func, OutputType type, void *arg)
             AppendOutputFuncList(func, arg, &LogList);
             break;
 
+        case OUTPUT_TYPE__EXTRA_DATA:
+            AppendOutputFuncList(func, arg, &ExtraDataList);
+            break;
+
         default:
             /* just to be error-prone */
             FatalError("Unknown output type: %i. Possible bug, please "
@@ -677,8 +682,8 @@ void CallOutputPlugins(OutputType out_type, Packet *packet, void *event, uint32_
     /* Plug for sid suppression */
     if(event)
     {
-	if(pbCheckSignatureSuppression(event))
-	    return;
+        if(pbCheckSignatureSuppression(event))
+            return;
     }
 
 
@@ -700,24 +705,36 @@ void CallOutputPlugins(OutputType out_type, Packet *packet, void *event, uint32_
     }
     else
     {
-	//All those sub "Log" type will go away in the future..
-	//Iterate Log and Alert.
-	idx = LogList;
-	
-        while (idx != NULL)
+        if (out_type == OUTPUT_TYPE__EXTRA_DATA) 
         {
-            idx->func(packet, event, event_type, idx->arg);
-            idx = idx->next;
-        }
-	
-	idx = AlertList;
+            idx = ExtraDataList;
 
-        while (idx != NULL)
-        {
-            idx->func(packet, event, event_type, idx->arg);
-            idx = idx->next;
+            while (idx != NULL)
+            {
+                idx->func(packet, event, event_type, idx->arg);
+                idx = idx->next;
+            }
         }
-	
+        else
+        {
+            //All those sub "Log" type will go away in the future..
+            //Iterate Log and Alert.
+            idx = LogList;
+
+            while (idx != NULL)
+            {
+                idx->func(packet, event, event_type, idx->arg);
+                idx = idx->next;
+            }
+
+            idx = AlertList;
+
+            while (idx != NULL)
+            {
+                idx->func(packet, event, event_type, idx->arg);
+                idx = idx->next;
+            }
+        }
     }
 }
 

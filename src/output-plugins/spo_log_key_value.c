@@ -109,6 +109,8 @@ static void logKeyValueRegister (char *args)
     DEBUG_WRAP(DebugMessage(DEBUG_INIT, "log_key_value: Linking functions to call lists\n"););
 
     AddFuncToOutputList(logKeyValueHandler, OUTPUT_TYPE__LOG, data);
+    AddFuncToOutputList(logKeyValueHandler, OUTPUT_TYPE__EXTRA_DATA, data);
+
     AddFuncToCleanExitList(logKeyValueExit, data);
     AddFuncToShutdownList(logKeyValueExit, data);
     AddFuncToRestartList(logKeyValueRestart, data);
@@ -322,7 +324,7 @@ static void logKeyValueExtraDataHandler (void *orig_event, uint32_t event_type, 
     if (event_type != UNIFIED2_EXTRA_DATA)
         return;
 
-    if (event == NULL || data == NULL)
+    if (orig_event == NULL || data == NULL)
     {
         LogMessage("log_key_value: Extra data handler called with null arguments for event type %u\n", event_type);
         return;

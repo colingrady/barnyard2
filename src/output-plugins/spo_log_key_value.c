@@ -63,6 +63,8 @@
 
 #define ENCODING_NONE -1
 
+#define TO_IP(x) x >> 24, (x >> 16) & 0xff, (x >> 8) & 0xff, x & 0xff
+
 
 
 typedef struct _LogKeyValueData
@@ -329,7 +331,6 @@ static void logKeyValueExtraDataHandler (void *orig_event, uint32_t event_type, 
     Unified2ExtraData *extra_event = NULL;
     u_char *extra_data = NULL;
     int extra_data_len;
-    struct in_addr ip_addr;
     uint32_t ip;
 
     if (event_type != UNIFIED2_EXTRA_DATA)
@@ -371,11 +372,10 @@ static void logKeyValueExtraDataHandler (void *orig_event, uint32_t event_type, 
         {
             case EVENT_INFO_XFF_IPV4:
                 memcpy(&ip, extra_event + sizeof(Unified2ExtraData), sizeof(uint32_t));
-                ip_addr->s_addr = ntohl(ip);
-                TextLog_Print(data->log, "data=%s ", inet_ntoa(ip_addr));
+                TextLog_Print(data->log, "data=%u.%u.%u.%u ", TO_IP(ntohl(ip)));
                 break;
 
-            default;
+            default:
                 break;
         }
 

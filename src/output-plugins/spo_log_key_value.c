@@ -329,6 +329,7 @@ static void logKeyValueExtraDataHandler (void *orig_event, uint32_t event_type, 
     Unified2ExtraData *extra_event = NULL;
     u_char *extra_data = NULL;
     int extra_data_len;
+    uint32_t ip;
 
     if (event_type != UNIFIED2_EXTRA_DATA)
         return;
@@ -343,6 +344,8 @@ static void logKeyValueExtraDataHandler (void *orig_event, uint32_t event_type, 
     extra_event = (Unified2ExtraData *)(orig_event + sizeof(Unified2ExtraDataHdr));
     extra_data_len = ntohl(extra_event->blob_length) - sizeof(extra_event->blob_length) - sizeof(extra_event->data_type);
 
+    extra_event->type = ntohl(extra_event->type);
+
     if (extra_data_len)
     {
         /*
@@ -355,15 +358,25 @@ static void logKeyValueExtraDataHandler (void *orig_event, uint32_t event_type, 
 
         logKeyValuePrintLogHeader(extra_event, data, "EXTRA");
 
-        TextLog_Print(data->log, "extratypenum=%d,%u ", extra_event->type, extra_event->type);
-
-        if (extra_event->type)
-            TextLog_Print(data->log, "extratype=\"%s\" ", data->extra_data_types[ntohl(extra_event->type)]);
+        if (extra_event->type && extra_event->type < EVENT_INFO_MAX)
+            TextLog_Print(data->log, "extratype=\"%s\" ", data->extra_data_types[extra_event->type]);
         else
+        {
             TextLog_Puts(data->log, "extratype=Unsupported ");
+            return;
+        }
 
+        switch (extra_event->type)
+        {
+            case EVENT_INFO_XFF_IPV4:
+                memcpy(&ip, extra_event + sizeof(Unified2ExtraData), sizeof(uint32_t));
+                ip = ntohl(ip);
+                TextLog_Print(data->log, "data=%s ", inet_ntoa(ip));
+                break;
 
-        // TODO: Output data here
+            default;
+                break;
+        }
 
         TextLog_NewLine(data->log);
         TextLog_Flush(data->log);

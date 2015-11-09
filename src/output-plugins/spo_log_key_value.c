@@ -433,7 +433,7 @@ static void logKeyValuePrintLogHeader (void *orig_event, LogKeyValueData *data, 
     if (BcAlertInterface())
         TextLog_Print(data->log, "iface=%s ", PRINT_INTERFACE(barnyard2_conf->interface));
 
-    TextLog_Print(data->log, "eventid=%lu ", (unsigned long) ntohl(event->event_id));
+    TextLog_Print(data->log, "eventid=%d ", ntohl(event->event_id));
 
     if (data->like_syslog)
         TextLog_Print(data->log, "eventsec=%d ", ntohl(event->event_second));

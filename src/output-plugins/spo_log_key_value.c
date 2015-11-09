@@ -120,7 +120,7 @@ static void logKeyValueRegister (char *args)
     AddFuncToShutdownList(logKeyValueExit, data);
     AddFuncToRestartList(logKeyValueRestart, data);
 
-    data->extra_data_types = mSplit("Nada,HTTP XFF,HTTP XFF,Reviewed By,gzip Data," \
+    data->extra_data_types = mSplit("NOTHING,HTTP XFF,HTTP XFF,Reviewed By,Gzip Data," \
                                     "SMTP Filename,SMTP MAIL FROM,SMTP RCPT TO," \
                                     "SMTP Email Headers,HTTP URI,HTTP Hostname," \
                                     "IPv6 Source,IPv6 Destination", \
@@ -267,7 +267,7 @@ static void logKeyValueEventHandler (Packet *p, void *orig_event, uint32_t event
 
     logKeyValuePrintLogHeader(orig_event, data, "EVENT");
 
-    TextLog_Print(data->log, "sigid=\"%lu:%lu\" sigrev=%lu ", (unsigned long) ntohl(event->generator_id), (unsigned long) ntohl(event->signature_id), (unsigned long) ntohl(event->signature_revision));
+    TextLog_Print(data->log, "sigid=\"%u:%u\" sigrev=%u ", ntohl(event->generator_id), ntohl(event->signature_id), ntohl(event->signature_revision));
 
     sn = GetSigByGidSid(ntohl(event->generator_id), ntohl(event->signature_id), ntohl(event->signature_revision));
     if (sn != NULL)
@@ -281,9 +281,9 @@ static void logKeyValueEventHandler (Packet *p, void *orig_event, uint32_t event
 
     cn = ClassTypeLookupById(barnyard2_conf, ntohl(event->classification_id));
     if (cn != NULL)
-        TextLog_Print(data->log, "class=\"%s\" priority=%d ", cn->name, cn->priority);
+        TextLog_Print(data->log, "class=\"%s\" priority=%u ", cn->name, cn->priority);
     else
-        TextLog_Print(data->log, "class=%d priority=%d ", ntohl(event->classification_id), ntohl(event->priority_id));
+        TextLog_Print(data->log, "class=%u priority=%u ", ntohl(event->classification_id), ntohl(event->priority_id));
 
     if (IPH_IS_VALID(p))
     {
@@ -291,10 +291,10 @@ static void logKeyValueEventHandler (Packet *p, void *orig_event, uint32_t event
 
         TextLog_Print(data->log, "sip=%s ", inet_ntoa(GET_SRC_ADDR(p)));
         if (!p->frag_flag && p->sp)
-            TextLog_Print(data->log, "sport=%d ", p->sp);
+            TextLog_Print(data->log, "sport=%u ", p->sp);
         TextLog_Print(data->log, "dip=%s ", inet_ntoa(GET_DST_ADDR(p)));
         if (!p->frag_flag && p->dp)
-            TextLog_Print(data->log, "dport=%d ", p->dp);
+            TextLog_Print(data->log, "dport=%u ", p->dp);
         
         if (p->dsize && data->encoding != ENCODING_NONE)
         {
@@ -357,7 +357,7 @@ static void logKeyValueExtraDataHandler (void *orig_event, uint32_t event_type, 
             TextLog_Print(data->log, "extratype=\"%s\" ", data->extra_data_types[extra_event->type]);
         else
         {
-            TextLog_Puts(data->log, "extratype=Unsupported ");
+            TextLog_Puts(data->log, "extratype=\"Unsupported\" ");
             return;
         }
 
@@ -365,7 +365,7 @@ static void logKeyValueExtraDataHandler (void *orig_event, uint32_t event_type, 
         {
             case EVENT_INFO_XFF_IPV4:
                 memcpy(&ip, orig_event + sizeof(Unified2ExtraDataHdr) + sizeof(Unified2ExtraData), sizeof(uint32_t));
-                TextLog_Print(data->log, "data=%u.%u.%u.%u", TO_IP(ntohl(ip)));
+                TextLog_Print(data->log, "data=\"%u.%u.%u.%u\"", TO_IP(ntohl(ip)));
                 break;
 
             case EVENT_INFO_XFF_IPV6:
@@ -431,7 +431,7 @@ static void logKeyValuePrintLogHeader (void *orig_event, LogKeyValueData *data, 
     }
     else
     {
-        TextLog_Print(data->log, "%%snortids eventsec=%d ", ntohl(event->event_second));
+        TextLog_Print(data->log, "%%snortids eventsec=%u ", ntohl(event->event_second));
 
         if (barnyard2_conf->hostname != NULL)
             TextLog_Print(data->log, "host=%s ", barnyard2_conf->hostname);
@@ -444,10 +444,10 @@ static void logKeyValuePrintLogHeader (void *orig_event, LogKeyValueData *data, 
     if (BcAlertInterface())
         TextLog_Print(data->log, "iface=%s ", PRINT_INTERFACE(barnyard2_conf->interface));
 
-    TextLog_Print(data->log, "eventid=%lu ", (unsigned long) ntohl(event->event_id));
+    TextLog_Print(data->log, "eventid=%u ", ntohl(event->event_id));
 
     if (data->like_syslog)
-        TextLog_Print(data->log, "eventsec=%d ", ntohl(event->event_second));
+        TextLog_Print(data->log, "eventsec=%u ", ntohl(event->event_second));
 }
 
 

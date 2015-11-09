@@ -682,8 +682,8 @@ void CallOutputPlugins(OutputType out_type, Packet *packet, void *event, uint32_
     /* Plug for sid suppression */
     if(event)
     {
-	if(pbCheckSignatureSuppression(event))
-	    return;
+        if(pbCheckSignatureSuppression(event))
+            return;
     }
 
 

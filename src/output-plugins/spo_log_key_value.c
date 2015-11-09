@@ -63,6 +63,9 @@
 
 #define ENCODING_NONE -1
 
+#define TO_IP(x) x >> 24, (x >> 16) & 0xff, (x >> 8) & 0xff, x & 0xff
+
+
 
 typedef struct _LogKeyValueData
 {
@@ -72,6 +75,9 @@ typedef struct _LogKeyValueData
 
     u_int8_t like_syslog;
     u_int8_t encoding;
+
+    char **extra_data_types;
+    int types_count;
 } LogKeyValueData;
 
 
@@ -79,10 +85,14 @@ typedef struct _LogKeyValueData
 static void logKeyValueRegister (char *);
 static LogKeyValueData *logKeyValueParseArgs (char *);
 static void logKeyValueHandler (Packet *, void *, uint32_t, void *);
+static void logKeyValueEventHandler (Packet *, void *, uint32_t, LogKeyValueData *);
+static void logKeyValueExtraDataHandler (void *, uint32_t, LogKeyValueData *);
+static void logKeyValuePrintLogHeader (void *, LogKeyValueData *, char *);
 static void logKeyValueExit (int, void *);
 static void logKeyValueRestart (int, void *);
 static void logKeyValueCleanup (int, void *, const char *);
 char *logKeyValueAscii (const u_char *, int);
+
 
 
 void logKeyValueSetup (void)
@@ -104,9 +114,17 @@ static void logKeyValueRegister (char *args)
     DEBUG_WRAP(DebugMessage(DEBUG_INIT, "log_key_value: Linking functions to call lists\n"););
 
     AddFuncToOutputList(logKeyValueHandler, OUTPUT_TYPE__LOG, data);
+    AddFuncToOutputList(logKeyValueHandler, OUTPUT_TYPE__EXTRA_DATA, data);
+
     AddFuncToCleanExitList(logKeyValueExit, data);
     AddFuncToShutdownList(logKeyValueExit, data);
     AddFuncToRestartList(logKeyValueRestart, data);
+
+    data->extra_data_types = mSplit("NOTHING,HTTP XFF,HTTP XFF,Reviewed By,Gzip Data," \
+                                    "SMTP Filename,SMTP MAIL FROM,SMTP RCPT TO," \
+                                    "SMTP Email Headers,HTTP URI,HTTP Hostname," \
+                                    "IPv6 Source,IPv6 Destination", \
+                                    ",", EVENT_INFO_MAX, &data->types_count, '\\');
 }
 
 
@@ -210,62 +228,46 @@ static LogKeyValueData *logKeyValueParseArgs (char *args)
 
 static void logKeyValueHandler (Packet *p, void *orig_event, uint32_t event_type, void *arg)
 {
-    Unified2EventCommon *event = (Unified2EventCommon *)orig_event;
     LogKeyValueData *data = (LogKeyValueData *)arg;
+
+    switch (event_type)
+    {
+        case UNIFIED2_EXTRA_DATA:
+            logKeyValueExtraDataHandler(orig_event, event_type, data);
+            break;
+
+        case UNIFIED2_IDS_EVENT:
+        case UNIFIED2_IDS_EVENT_IPV6:
+        case UNIFIED2_IDS_EVENT_MPLS:
+        case UNIFIED2_IDS_EVENT_IPV6_MPLS:
+        case UNIFIED2_IDS_EVENT_VLAN:
+        case UNIFIED2_IDS_EVENT_IPV6_VLAN:
+        default:
+            logKeyValueEventHandler(p, orig_event, event_type, data);
+            break;
+    }
+}
+
+
+static void logKeyValueEventHandler (Packet *p, void *orig_event, uint32_t event_type, LogKeyValueData *data)
+{
+    Unified2EventCommon *event = (Unified2EventCommon *)orig_event;
     SigNode *sn;
     ClassType *cn;
     char *packet_data;
 
-    // If there's no packet data, no need to continue
     if (p == NULL)
         return;
 
     if (event == NULL || data == NULL)
     {
-        LogMessage("log_key_value: Handler called with null arguments for event eype %u\n", event_type);
+        LogMessage("log_key_value: Event handler called with null arguments for event type %u\n", event_type);
         return;
     }
 
-    if (data->like_syslog)
-    {
-        char timestamp[20];
-        int localzone;
-        time_t t;
-        struct tm *lt;
+    logKeyValuePrintLogHeader(orig_event, data, "EVENT");
 
-        localzone = barnyard2_conf->thiszone;
-        if (BcOutputUseUtc())
-            localzone = 0;
-
-        t = ntohl(event->event_second) + localzone;
-        lt = gmtime(&t);
-
-        if (strftime(timestamp, sizeof(timestamp), "%h %e %T", lt))
-            TextLog_Print(data->log, "%s ", timestamp);
-        else
-            LogTimeStamp(data->log, p);
-
-        if (barnyard2_conf->hostname != NULL)
-            TextLog_Print(data->log, "%s ", barnyard2_conf->hostname);
-        else
-            TextLog_Puts(data->log, "sensor ");
-
-        TextLog_Print(data->log, "barnyard[%d]: ", data->pid);
-    }
-    else
-    {
-        TextLog_Print(data->log, "\%barnyard2 timestamp=%d ", ntohl(event->event_second));
-
-        if (barnyard2_conf->hostname != NULL)
-            TextLog_Print(data->log, "host=%s ", barnyard2_conf->hostname);
-        else
-            TextLog_Puts(data->log, "host=sensor ");
-    }
-
-    if (BcAlertInterface())
-        TextLog_Print(data->log, "iface=%s ", PRINT_INTERFACE(barnyard2_conf->interface));
-
-    TextLog_Print(data->log, "id=\"%lu:%lu:%lu\" ", (unsigned long) ntohl(event->generator_id), (unsigned long) ntohl(event->signature_id), (unsigned long) ntohl(event->signature_revision));
+    TextLog_Print(data->log, "sigid=\"%u:%u\" sigrev=%u ", ntohl(event->generator_id), ntohl(event->signature_id), ntohl(event->signature_revision));
 
     sn = GetSigByGidSid(ntohl(event->generator_id), ntohl(event->signature_id), ntohl(event->signature_revision));
     if (sn != NULL)
@@ -279,9 +281,9 @@ static void logKeyValueHandler (Packet *p, void *orig_event, uint32_t event_type
 
     cn = ClassTypeLookupById(barnyard2_conf, ntohl(event->classification_id));
     if (cn != NULL)
-        TextLog_Print(data->log, "class=\"%s\" priority=%d ", cn->name, cn->priority);
+        TextLog_Print(data->log, "class=\"%s\" priority=%u ", cn->name, cn->priority);
     else
-        TextLog_Print(data->log, "class=%d priority=%d ", ntohl(event->classification_id), ntohl(event->priority_id));
+        TextLog_Print(data->log, "class=%u priority=%u ", ntohl(event->classification_id), ntohl(event->priority_id));
 
     if (IPH_IS_VALID(p))
     {
@@ -289,14 +291,14 @@ static void logKeyValueHandler (Packet *p, void *orig_event, uint32_t event_type
 
         TextLog_Print(data->log, "sip=%s ", inet_ntoa(GET_SRC_ADDR(p)));
         if (!p->frag_flag && p->sp)
-            TextLog_Print(data->log, "sport=%d ", p->sp);
+            TextLog_Print(data->log, "sport=%u ", p->sp);
         TextLog_Print(data->log, "dip=%s ", inet_ntoa(GET_DST_ADDR(p)));
         if (!p->frag_flag && p->dp)
-            TextLog_Print(data->log, "dport=%d ", p->dp);
+            TextLog_Print(data->log, "dport=%u ", p->dp);
         
         if (p->dsize && data->encoding != ENCODING_NONE)
         {
-            switch(data->encoding)
+            switch (data->encoding)
             {
                 case ENCODING_HEX:
                     packet_data = fasthex(p->data, p->dsize);
@@ -323,6 +325,132 @@ static void logKeyValueHandler (Packet *p, void *orig_event, uint32_t event_type
 }
 
 
+static void logKeyValueExtraDataHandler (void *orig_event, uint32_t event_type, LogKeyValueData *data)
+{
+    Unified2ExtraDataHdr *extra_header = NULL;
+    Unified2ExtraData *extra_event = NULL;
+    int extra_data_len;
+    uint32_t ip;
+    struct in6_addr ip6;
+    char ip6_buffer[INET6_ADDRSTRLEN + 1];
+
+    if (event_type != UNIFIED2_EXTRA_DATA)
+        return;
+
+    if (orig_event == NULL || data == NULL)
+    {
+        LogMessage("log_key_value: Extra data handler called with null arguments for event type %u\n", event_type);
+        return;
+    }
+
+    extra_header = (Unified2ExtraDataHdr *)orig_event;
+    extra_event = (Unified2ExtraData *)(orig_event + sizeof(Unified2ExtraDataHdr));
+    extra_data_len = ntohl(extra_event->blob_length) - sizeof(extra_event->blob_length) - sizeof(extra_event->data_type);
+
+    extra_event->type = ntohl(extra_event->type);
+
+    if (extra_data_len)
+    {
+        logKeyValuePrintLogHeader(extra_event, data, "EXTRA");
+
+        if (extra_event->type && extra_event->type < EVENT_INFO_MAX)
+            TextLog_Print(data->log, "extratype=\"%s\" ", data->extra_data_types[extra_event->type]);
+        else
+        {
+            TextLog_Puts(data->log, "extratype=\"Unsupported\" ");
+            return;
+        }
+
+        switch (extra_event->type)
+        {
+            case EVENT_INFO_XFF_IPV4:
+                memcpy(&ip, orig_event + sizeof(Unified2ExtraDataHdr) + sizeof(Unified2ExtraData), sizeof(uint32_t));
+                TextLog_Print(data->log, "data=\"%u.%u.%u.%u\"", TO_IP(ntohl(ip)));
+                break;
+
+            case EVENT_INFO_XFF_IPV6:
+            case EVENT_INFO_IPV6_SRC:
+            case EVENT_INFO_IPV6_DST:
+                memcpy(&ip6, orig_event + sizeof(Unified2ExtraDataHdr) + sizeof(Unified2ExtraData), sizeof(struct in6_addr));
+                inet_ntop(AF_INET6, &ip6, ip6_buffer, INET6_ADDRSTRLEN);
+                TextLog_Print(data->log, "data=\"%s\"", ip6_buffer);
+                break;
+
+            case EVENT_INFO_REVIEWED_BY:
+            case EVENT_INFO_SMTP_FILENAME:
+            case EVENT_INFO_SMTP_MAILFROM:
+            case EVENT_INFO_SMTP_RCPTTO:
+            case EVENT_INFO_SMTP_EMAIL_HDRS:
+            case EVENT_INFO_HTTP_URI:
+            case EVENT_INFO_HTTP_HOSTNAME:
+                TextLog_Print(data->log, "data=\"%.*s\"", extra_data_len, orig_event + sizeof(Unified2ExtraDataHdr) + sizeof(Unified2ExtraData));
+                break;
+
+            default:
+                break;
+        }
+
+        TextLog_NewLine(data->log);
+        TextLog_Flush(data->log);
+    }
+}
+
+
+static void logKeyValuePrintLogHeader (void *orig_event, LogKeyValueData *data, char *log_type)
+{
+    Unified2CacheCommon *event = (Unified2CacheCommon *)orig_event;
+
+    if (data->like_syslog)
+    {
+        char timestamp[20];
+        int localzone;
+        time_t t;
+        struct tm *lt;
+
+        localzone = barnyard2_conf->thiszone;
+        if (BcOutputUseUtc())
+            localzone = 0;
+
+        t = ntohl(event->event_second) + localzone;
+        lt = gmtime(&t);
+
+        if (strftime(timestamp, sizeof(timestamp), "%h %e %T", lt))
+            TextLog_Print(data->log, "%s ", timestamp);
+        else
+        {
+            LogMessage("log_key_value: Unable to parse the event timestamp\n");
+            TextLog_Puts(data->log, "Jan  1 00:00:00");
+        }
+
+        if (barnyard2_conf->hostname != NULL)
+            TextLog_Print(data->log, "%s ", barnyard2_conf->hostname);
+        else
+            TextLog_Puts(data->log, "sensor ");
+
+        TextLog_Print(data->log, "barnyard[%d]: %%snortids ", data->pid);
+    }
+    else
+    {
+        TextLog_Print(data->log, "%%snortids eventsec=%u ", ntohl(event->event_second));
+
+        if (barnyard2_conf->hostname != NULL)
+            TextLog_Print(data->log, "host=%s ", barnyard2_conf->hostname);
+        else
+            TextLog_Puts(data->log, "host=sensor ");
+    }
+
+    TextLog_Print(data->log, "logtype=%s ", log_type);
+
+    if (BcAlertInterface())
+        TextLog_Print(data->log, "iface=%s ", PRINT_INTERFACE(barnyard2_conf->interface));
+
+    TextLog_Print(data->log, "eventid=%u ", ntohl(event->event_id));
+
+    if (data->like_syslog)
+        TextLog_Print(data->log, "eventsec=%u ", ntohl(event->event_second));
+}
+
+
 static void logKeyValueExit (int signal, void *arg)
 {
     logKeyValueCleanup(signal, arg, "exit");
@@ -343,6 +471,9 @@ static void logKeyValueCleanup (int signal, void *arg, const char *msg)
 
     if (data)
     {
+        if (data->extra_data_types)
+            mSplitFree(&data->extra_data_types, data->types_count);
+
         if (data->log)
             TextLog_Term(data->log);
 

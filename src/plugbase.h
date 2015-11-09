@@ -86,6 +86,7 @@ typedef enum _OutputType
     OUTPUT_TYPE__ALERT = 1,
     OUTPUT_TYPE__LOG,
 	OUTPUT_TYPE__SPECIAL,
+    OUTPUT_TYPE__EXTRA_DATA,
     OUTPUT_TYPE__MAX
 
 } OutputType;

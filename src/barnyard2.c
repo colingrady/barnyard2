@@ -145,6 +145,7 @@ PluginSignalFuncNode *plugin_restart_funcs = NULL;
 InputFuncNode *InputList = NULL;
 OutputFuncNode *AlertList = NULL;   /* Alert function list */
 OutputFuncNode *LogList = NULL;     /* Log function list */
+OutputFuncNode *ExtraDataList = NULL;     /* Extra Data function list */
 
 int datalink;   /* the datalink value */
 uint32_t pcap_snaplen = PKT_SNAPLEN;
@@ -1246,8 +1247,10 @@ static void Barnyard2Cleanup(int exit_val,int exit_needed)
 
     FreeOutputList(AlertList);
     FreeOutputList(LogList);    
+    FreeOutputList(ExtraDataList);
     AlertList = NULL;
     LogList = NULL;
+    ExtraDataList = NULL;
 
     FreeOutputConfigFuncs();
 

@@ -841,6 +841,13 @@ void spoolerProcessRecord(Spooler *spooler, int fire_output)
     }
     else if (type == UNIFIED2_EXTRA_DATA)
     {
+        /* fire the extra data "event" */
+        if (fire_output)
+            CallOutputPlugins(OUTPUT_TYPE__EXTRA_DATA,
+                          NULL,
+                          spooler->record.data,
+                          type);
+
         /* waldo operations occur after the output plugins are called */
         if (fire_output)
             spoolerWriteWaldo(&barnyard2_conf->waldo, spooler);

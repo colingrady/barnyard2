@@ -380,7 +380,7 @@ static void logKeyValueExtraDataHandler (void *orig_event, uint32_t event_type, 
             case EVENT_INFO_XFF_IPV6:
             case EVENT_INFO_IPV6_SRC:
             case EVENT_INFO_IPV6_DST:
-                memcpy(&ip6, extra_data_len + sizeof(Unified2ExtraDataHdr) + sizeof(Unified2ExtraData), sizeof(struct in6_addr));
+                memcpy(&ip6, orig_event + sizeof(Unified2ExtraDataHdr) + sizeof(Unified2ExtraData), sizeof(struct in6_addr));
                 inet_ntop(AF_INET6, &ip6, ip6_buffer, INET6_ADDRSTRLEN);
                 TextLog_Print(data->log, "data=\"%s\"", ip6_buffer);
                 break;

@@ -332,6 +332,8 @@ static void logKeyValueExtraDataHandler (void *orig_event, uint32_t event_type, 
     u_char *extra_data = NULL;
     int extra_data_len;
     uint32_t ip;
+    struct in6_addr ip6;
+    char ip6_buffer[INET6_ADDRSTRLEN + 1];
 
     if (event_type != UNIFIED2_EXTRA_DATA)
         return;
@@ -373,6 +375,24 @@ static void logKeyValueExtraDataHandler (void *orig_event, uint32_t event_type, 
             case EVENT_INFO_XFF_IPV4:
                 memcpy(&ip, orig_event + sizeof(Unified2ExtraDataHdr) + sizeof(Unified2ExtraData), sizeof(uint32_t));
                 TextLog_Print(data->log, "data=%u.%u.%u.%u", TO_IP(ntohl(ip)));
+                break;
+
+            case EVENT_INFO_XFF_IPV6:
+            case EVENT_INFO_IPV6_SRC:
+            case EVENT_INFO_IPV6_DST:
+                memcpy(&ip6, extra_data_len + sizeof(Unified2ExtraDataHdr) + sizeof(Unified2ExtraData), sizeof(struct in6_addr));
+                inet_ntop(AF_INET6, &ip6, ip6_buffer, INET6_ADDRSTRLEN);
+                TextLog_Print(data->log, "data=\"%s\"", ip6_buffer);
+                break;
+
+            case EVENT_INFO_REVIEWED_BY:
+            case EVENT_INFO_SMTP_FILENAME:
+            case EVENT_INFO_SMTP_MAILFROM:
+            case EVENT_INFO_SMTP_RCPTTO:
+            case EVENT_INFO_SMTP_EMAIL_HDRS:
+            case EVENT_INFO_HTTP_URI:
+            case EVENT_INFO_HTTP_HOSTNAME:
+                TextLog_Print(data->log, "data=\"%.*s\"", extra_data_len, orig_event + sizeof(Unified2ExtraDataHdr) + sizeof(Unified2ExtraData));
                 break;
 
             default:

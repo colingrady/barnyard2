@@ -120,10 +120,10 @@ static void logKeyValueRegister (char *args)
     AddFuncToShutdownList(logKeyValueExit, data);
     AddFuncToRestartList(logKeyValueRestart, data);
 
-    data->extra_data_types = mSplit(",HTTP XFF,HTTP XFF,Reviewed By,gzip Data" \
-                                    ",SMTP Filename,SMTP MAIL FROM,SMTP RCPT TO" \
-                                    ",SMTP Email Headers,HTTP URI,HTTP Hostname" \
-                                    ",IPv6 Source,IPv6 Destination,", \
+    data->extra_data_types = mSplit("Nada,HTTP XFF,HTTP XFF,Reviewed By,gzip Data," \
+                                    "SMTP Filename,SMTP MAIL FROM,SMTP RCPT TO," \
+                                    "SMTP Email Headers,HTTP URI,HTTP Hostname," \
+                                    "IPv6 Source,IPv6 Destination", \
                                     ",", EVENT_INFO_MAX, &data->types_count, '\\');
 }
 
@@ -329,7 +329,6 @@ static void logKeyValueExtraDataHandler (void *orig_event, uint32_t event_type, 
 {
     Unified2ExtraDataHdr *extra_header = NULL;
     Unified2ExtraData *extra_event = NULL;
-    u_char *extra_data = NULL;
     int extra_data_len;
     uint32_t ip;
     struct in6_addr ip6;
@@ -352,14 +351,6 @@ static void logKeyValueExtraDataHandler (void *orig_event, uint32_t event_type, 
 
     if (extra_data_len)
     {
-        /*
-            TODO
-        extra_data = SnortAlloc(extra_data_len + 1);
-        memcpy(extra_data, (char *) extra_event + sizeof(Unified2ExtraData), extra_data_len);
-        extra_data[extra_data_len] = '\0';
-
-        */
-
         logKeyValuePrintLogHeader(extra_event, data, "EXTRA");
 
         if (extra_event->type && extra_event->type < EVENT_INFO_MAX)

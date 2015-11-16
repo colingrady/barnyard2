@@ -84,9 +84,8 @@ typedef struct _LogKeyValueData
 
 static void logKeyValueRegister (char *);
 static LogKeyValueData *logKeyValueParseArgs (char *);
-static void logKeyValueHandler (Packet *, void *, uint32_t, void *);
-static void logKeyValueEventHandler (Packet *, void *, uint32_t, LogKeyValueData *);
-static void logKeyValueExtraDataHandler (void *, uint32_t, LogKeyValueData *);
+static void logKeyValueEventHandler (Packet *, void *, uint32_t, void *);
+static void logKeyValueExtraDataHandler (Packet *, void *, uint32_t, void *);
 static void logKeyValuePrintLogHeader (void *, LogKeyValueData *, char *);
 static void logKeyValueExit (int, void *);
 static void logKeyValueRestart (int, void *);
@@ -113,8 +112,8 @@ static void logKeyValueRegister (char *args)
 
     DEBUG_WRAP(DebugMessage(DEBUG_INIT, "log_key_value: Linking functions to call lists\n"););
 
-    AddFuncToOutputList(logKeyValueHandler, OUTPUT_TYPE__LOG, data);
-    AddFuncToOutputList(logKeyValueHandler, OUTPUT_TYPE__EXTRA_DATA, data);
+    AddFuncToOutputList(logKeyValueEventHandler, OUTPUT_TYPE__LOG, data);
+    AddFuncToOutputList(logKeyValueExtraDataHandler, OUTPUT_TYPE__EXTRA_DATA, data);
 
     AddFuncToCleanExitList(logKeyValueExit, data);
     AddFuncToShutdownList(logKeyValueExit, data);
@@ -226,32 +225,10 @@ static LogKeyValueData *logKeyValueParseArgs (char *args)
 }
 
 
-static void logKeyValueHandler (Packet *p, void *orig_event, uint32_t event_type, void *arg)
-{
-    LogKeyValueData *data = (LogKeyValueData *)arg;
-
-    switch (event_type)
-    {
-        case UNIFIED2_EXTRA_DATA:
-            logKeyValueExtraDataHandler(orig_event, event_type, data);
-            break;
-
-        case UNIFIED2_IDS_EVENT:
-        case UNIFIED2_IDS_EVENT_IPV6:
-        case UNIFIED2_IDS_EVENT_MPLS:
-        case UNIFIED2_IDS_EVENT_IPV6_MPLS:
-        case UNIFIED2_IDS_EVENT_VLAN:
-        case UNIFIED2_IDS_EVENT_IPV6_VLAN:
-        default:
-            logKeyValueEventHandler(p, orig_event, event_type, data);
-            break;
-    }
-}
-
-
-static void logKeyValueEventHandler (Packet *p, void *orig_event, uint32_t event_type, LogKeyValueData *data)
+static void logKeyValueEventHandler (Packet *p, void *orig_event, uint32_t event_type, void *arg)
 {
     Unified2EventCommon *event = (Unified2EventCommon *)orig_event;
+    LogKeyValueData *data = (LogKeyValueData *)arg;
     SigNode *sn;
     ClassType *cn;
     char *packet_data;
@@ -325,8 +302,9 @@ static void logKeyValueEventHandler (Packet *p, void *orig_event, uint32_t event
 }
 
 
-static void logKeyValueExtraDataHandler (void *orig_event, uint32_t event_type, LogKeyValueData *data)
+static void logKeyValueExtraDataHandler (Packet *p, void *orig_event, uint32_t event_type, void *arg)
 {
+    LogKeyValueData *data = (LogKeyValueData *)arg;
     Unified2ExtraDataHdr *extra_header = NULL;
     Unified2ExtraData *extra_event = NULL;
     int extra_data_len;
